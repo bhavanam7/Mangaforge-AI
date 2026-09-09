@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+  background: #070914;
+  color: #f6f7fb;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  @apply m-0 min-w-[320px] antialiased;
+  background: #070914;
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+button, a { transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
+
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 3px;
+}
+
+@layer components {
+  .studio-card { @apply rounded-2xl border border-white/[0.08] bg-white/[0.035] shadow-2xl shadow-black/20; }
+  .studio-input { @apply w-full rounded-xl border border-white/[0.1] bg-black/20 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-violet-400/70 focus:bg-white/[0.06]; }
+  .studio-label { @apply mb-2 block text-xs font-semibold uppercase tracking-[0.15em] text-slate-400; }
+  .primary-button { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-bold text-slate-950 shadow-lg shadow-amber-950/20 hover:-translate-y-0.5 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50; }
+  .secondary-button { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-slate-200 hover:border-violet-300/50 hover:bg-white/[0.08]; }
+  .danger-button { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-rose-400/20 px-3 py-2 text-sm text-rose-300 hover:border-rose-300/50 hover:bg-rose-400/10; }
+}
