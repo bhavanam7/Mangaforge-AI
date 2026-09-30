@@ -6,20 +6,24 @@ import ConfirmModal from '../components/ConfirmModal'
 import { EmptyState, ErrorState, LoadingState } from '../components/PageState'
 import { deleteCharacter, listCharacters } from '../api/characters'
 import { deleteProject, getProject } from '../api/projects'
+import { deleteEpisode, listEpisodes } from '../api/episodes'
+import EpisodeCard from '../components/EpisodeCard'
 
 export default function ProjectDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [project, setProject] = useState(null)
   const [characters, setCharacters] = useState([])
+  const [episodes, setEpisodes] = useState([])
   const [pendingDelete, setPendingDelete] = useState(null)
   const [state, setState] = useState({ loading: true, error: '' })
 
   useEffect(() => {
-    Promise.all([getProject(id), listCharacters(id)])
-      .then(([projectResponse, characterResponse]) => {
+    Promise.all([getProject(id), listCharacters(id), listEpisodes(id)])
+      .then(([projectResponse, characterResponse, episodeResponse]) => {
         setProject(projectResponse.data)
         setCharacters(characterResponse.data)
+        setEpisodes(episodeResponse.data)
       })
       .catch(() => setState({ loading: false, error: 'Unable to load project.' }))
       .finally(() => setState((current) => ({ ...current, loading: false })))
@@ -29,9 +33,13 @@ export default function ProjectDetailPage() {
     if (pendingDelete.type === 'project') {
       await deleteProject(id)
       navigate('/projects')
-    } else {
+    } else if (pendingDelete.type === 'character') {
       await deleteCharacter(pendingDelete.item.id)
       setCharacters((current) => current.filter((character) => character.id !== pendingDelete.item.id))
+      setPendingDelete(null)
+    } else {
+      await deleteEpisode(pendingDelete.item.id)
+      setEpisodes((current) => current.filter((episode) => episode.id !== pendingDelete.item.id))
       setPendingDelete(null)
     }
   }
@@ -65,7 +73,7 @@ export default function ProjectDetailPage() {
       <div className="mt-8 flex gap-1 border-b border-white/[0.08]">
         <span className="border-b-2 border-violet-400 px-4 py-3 text-sm font-semibold text-violet-200">Overview</span>
         <span className="px-4 py-3 text-sm text-slate-500">Characters <span className="ml-1 text-xs">{characters.length}</span></span>
-        <span className="px-4 py-3 text-sm text-slate-600">Episodes</span>
+        <span className="px-4 py-3 text-sm text-slate-500">Episodes <span className="ml-1 text-xs">{episodes.length}</span></span>
       </div>
       <div className="mt-8 grid gap-5 lg:grid-cols-[1fr_280px]">
         <div>
@@ -79,11 +87,18 @@ export default function ProjectDetailPage() {
           <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Project information</p>
           <dl className="mt-5 space-y-4 text-sm">
             <div><dt className="text-slate-500">Characters</dt><dd className="mt-1 text-xl font-bold text-white">{characters.length}</dd></div>
-            <div><dt className="text-slate-500">Episodes</dt><dd className="mt-1 text-xl font-bold text-slate-600">Not available yet</dd></div>
+            <div><dt className="text-slate-500">Episodes</dt><dd className="mt-1 text-xl font-bold text-white">{episodes.length}</dd></div>
             <div><dt className="text-slate-500">Status</dt><dd className="mt-1 capitalize text-slate-300">{project.status}</dd></div>
             <div><dt className="text-slate-500">Last updated</dt><dd className="mt-1 text-slate-300">{new Date(project.updated_at).toLocaleDateString()}</dd></div>
           </dl>
         </aside>
+      </div>
+      <div className="mt-10">
+        <div className="mb-5 flex items-center justify-between">
+          <div><p className="text-xs uppercase tracking-[0.2em] text-violet-300">Story sequence</p><h2 className="mt-1 text-2xl font-bold text-white">Episodes</h2></div>
+          <Link to={`/projects/${id}/episodes/new`} className="primary-button">＋ Add Episode</Link>
+        </div>
+        {episodes.length === 0 ? <EmptyState message="No episodes yet. Add the first chapter to this project." /> : <div className="grid gap-5 md:grid-cols-2">{episodes.map((episode) => <EpisodeCard key={episode.id} episode={episode} onDelete={(item) => setPendingDelete({ type: 'episode', item })} />)}</div>}
       </div>
     </section>
     {pendingDelete && <ConfirmModal title={`Delete “${pendingDelete.item.title || pendingDelete.item.name}”?`} message="This item will disappear from your workspace. The record remains soft-deleted for data safety." onClose={() => setPendingDelete(null)} onConfirm={remove} />}
