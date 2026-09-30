@@ -118,10 +118,12 @@ class StoryAPITests(APITestCase):
         response = self.client.get(self.story_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], StorySession.Status.ACTIVE)
+        self.assertEqual(response.data["messages"][0]["role"], StoryMessage.Role.USER)
+        self.assertEqual(response.data["messages"][0]["content"], self.project.description)
         message = self.client.post(self.story_url(), {"content": "Begin with a quiet garden scene."}, format="json")
         self.assertEqual(message.status_code, status.HTTP_201_CREATED)
         self.assertEqual(message.data["role"], StoryMessage.Role.USER)
-        self.assertEqual(StoryMessage.objects.filter(session__project=self.project).count(), 1)
+        self.assertEqual(StoryMessage.objects.filter(session__project=self.project).count(), 2)
 
     def test_story_session_can_be_finalized_and_rejects_new_messages(self):
         self.client.post(self.story_url(), {"content": "A first direction."}, format="json")
