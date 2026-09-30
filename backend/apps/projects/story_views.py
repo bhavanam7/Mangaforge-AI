@@ -17,6 +17,12 @@ class ProjectStoryView(APIView):
     def get_or_create_session(self, request, project_id):
         project = self.get_project(request, project_id)
         session, _ = StorySession.objects.get_or_create(project=project, owner=request.user)
+        if project.description and not session.messages.exists():
+            StoryMessage.objects.create(
+                session=session,
+                role=StoryMessage.Role.USER,
+                content=project.description,
+            )
         return session
 
     def get(self, request, project_id):
