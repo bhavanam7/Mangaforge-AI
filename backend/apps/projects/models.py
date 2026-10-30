@@ -43,18 +43,49 @@ class StorySession(models.Model):
         ACTIVE = "active", "Active"
         FINALIZED = "finalized", "Finalized"
 
+    class Stage(models.TextChoices):
+        PROMPT_EVAL = "PROMPT_EVAL", "Prompt Evaluation"
+        ENRICHED_CONTENT = "ENRICHED_CONTENT", "Enriched Content Generation"
+        JSON_GENERATION = "JSON_GENERATION", "JSON Entity Extraction"
+        CHARACTER_ENHANCEMENT = "CHARACTER_ENHANCEMENT", "Character Enhancement"
+        BACKGROUND_ENHANCEMENT = "BACKGROUND_ENHANCEMENT", "Background Enhancement"
+        SCENE_DIALOGUE_ENHANCEMENT = "SCENE_DIALOGUE_ENHANCEMENT", "Scene & Dialogue Enhancement"
+        FINALIZED = "FINALIZED", "Finalized"
+
+    # Stage transition lookup matrix to validate workflow progress
+    ALLOWED_TRANSITIONS = {
+        Stage.PROMPT_EVAL: [Stage.PROMPT_EVAL, Stage.ENRICHED_CONTENT],
+        Stage.ENRICHED_CONTENT: [Stage.ENRICHED_CONTENT, Stage.JSON_GENERATION],
+        Stage.JSON_GENERATION: [Stage.CHARACTER_ENHANCEMENT],
+        Stage.CHARACTER_ENHANCEMENT: [Stage.CHARACTER_ENHANCEMENT, Stage.BACKGROUND_ENHANCEMENT],
+        Stage.BACKGROUND_ENHANCEMENT: [Stage.BACKGROUND_ENHANCEMENT, Stage.SCENE_DIALOGUE_ENHANCEMENT],
+        Stage.SCENE_DIALOGUE_ENHANCEMENT: [Stage.SCENE_DIALOGUE_ENHANCEMENT, Stage.FINALIZED],
+        Stage.FINALIZED: [],
+    }
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name="story_session")
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="story_sessions")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    
+    # State tracking & content persistence fields
+    stage = models.CharField(max_length=40, choices=Stage.choices, default=Stage.PROMPT_EVAL)
+    enriched_content = models.TextField(default="", blank=True)
+    json_output = models.JSONField(default=dict, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ("-created_at",)
 
+    def transition_to(self, new_stage: str):
+        if new_stage not in self.ALLOWED_TRANSITIONS.get(self.stage, []):
+            raise ValueError(f"Invalid state transition from '{self.stage}' to '{new_stage}'")
+        self.stage = new_stage
+
     def __str__(self):
-        return f"Story session: {self.project.title}"
+        return f"Story session: {self.project.title} ({self.stage})"
 
 
 class StoryMessage(models.Model):

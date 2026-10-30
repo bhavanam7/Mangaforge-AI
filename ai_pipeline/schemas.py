@@ -1,4 +1,21 @@
+"""
+Pydantic Data Contract
+======================
+Complete state schemas defined in
+`system_architecture_technical_specification.md` (Section 2).
+
+These models are the single source of truth for:
+  * Phase 3 Master JSON Extraction (format = TurnExtractionOutput.model_json_schema())
+  * Phase 4 Enhancement Hub context slicing (CharacterSceneInfo / BackgroundState / SceneState)
+  * Validation of everything persisted into the Django `StorySession.json_output`
+    (master_json) field.
+
+Imported by the Django orchestrator as `schemas` (the ai_pipeline directory is
+placed on `sys.path` by `main.py`).
+"""
+
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 
 
@@ -22,12 +39,12 @@ class CharacterState(BaseModel):
     current_goal: Optional[str] = None  # e.g., "Escape the falling rocks"
     injuries_sustained_this_turn: List[str] = []  # e.g., ["Cut on left hand", "Severed left arm"]
     current_action: Optional[str] = None  # e.g., "Dodging Orochimaru's strike"
-    knowledge_gained: List[str] = []  # e.g., "Learned Orochimaru's weakness"
-    
+    knowledge_gained: List[str] = []  # e.g., ["Learned Orochimaru's weakness"]
+
     # Flag to indicate if current turn injuries/events alter permanent canonical state
     causes_permanent_canon_change: bool = False
     permanent_change_description: Optional[str] = None  # e.g., "Left arm cut off permanently"
-    
+
     extra: Dict[str, Any] = {}
 
 
@@ -67,3 +84,22 @@ class TurnExtractionOutput(BaseModel):
 
 
 TurnExtractionOutput.model_rebuild()
+
+
+# ---------------------------------------------------------------------------
+# Helpers used by the orchestrator (state initialization / validation)
+# ---------------------------------------------------------------------------
+
+def empty_master_state() -> Dict[str, Any]:
+    """Return an empty but schema-valid `master_json` payload."""
+    return TurnExtractionOutput(scene=SceneState(summary="")).model_dump()
+
+
+def validate_master_state(data: Any) -> Optional[Dict[str, Any]]:
+    """Validate arbitrary data against TurnExtractionOutput; returns dict or None."""
+    if not isinstance(data, dict):
+        return None
+    try:
+        return TurnExtractionOutput.model_validate(data).model_dump()
+    except Exception:
+        return None
