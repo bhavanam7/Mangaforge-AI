@@ -67,13 +67,13 @@ import scope_router
 import state_sync
 from ollama_driver import build_messages, complete, complete_structured
 from prompts.agents_prompt import (
-    BACKGROUND_ENHANCEMENT_SYSTEM_PROMPT,
+    BACKGROUND_EDIT_SYSTEM_PROMPT,
     BACKGROUND_SUMMARY_SYSTEM_PROMPT,
-    CHARACTER_ENHANCEMENT_SYSTEM_PROMPT,
+    CHARACTER_EDIT_SYSTEM_PROMPT,
     CHARACTER_SUMMARY_SYSTEM_PROMPT,
     PROMPT_CLARIFICATION_2Q,
     PROMPT_STORY_GENERATION_CHAT,
-    SCENE_ENHANCEMENT_SYSTEM_PROMPT,
+    SCENE_EDIT_SYSTEM_PROMPT,
     SCENE_SUMMARY_SYSTEM_PROMPT,
     SYNTHESIS_SYSTEM_PROMPT,
     TURN_EXTRACTION_OUTPUT_PROMPT,
@@ -656,9 +656,9 @@ def _route_enhancement(
     if resolved_scope == "character":
         return _handle_character(user_content, state, enriched_content, action, target_id)
     if resolved_scope == "background":
-        return _handle_background(user_content, state, enriched_content)
+        return _handle_background(user_content, state, enriched_content, action)
     if resolved_scope == "scene":
-        return _handle_scene(user_content, state, enriched_content)
+        return _handle_scene(user_content, state, enriched_content, action)
 
     # scope == "story": the user went back to writing. The narrative is no
     # longer read-only here — it is updated and re-extracted below, otherwise
@@ -737,7 +737,15 @@ def _handle_character(
     listed = scope_router.list_characters(master)
     available = ", ".join(f"{c['name']} ({c['id']})" for c in listed)
 
-    char_id = scope_router.resolve_character_target(target_id, user_content, master)
+    # char_id = scope_router.resolve_character_target(target_id, user_content, master)
+    #perform changes 
+    effective_target_id = target_id or state.get("target_id")
+
+    char_id = scope_router.resolve_character_target(
+        effective_target_id,
+        user_content,
+        master
+    )
     if char_id is None:
         state["target_id"] = None
         return (
@@ -752,7 +760,9 @@ def _handle_character(
     state["target_id"] = char_id
 
     # Phase 4 selection: present the isolated single-paragraph summary.
-    if scope_router.is_select_request(action, user_content, [c["name"] for c in listed]):
+    if scope_router.is_select_request(
+        action, user_content, [c["name"] for c in listed]
+    ) or scope_router.is_selection_only(action, user_content):
         summary = _summarize_character(original)
         if summary is None:
             return MODEL_ERROR, CHARACTER_ENHANCEMENT, enriched_content, state
@@ -802,7 +812,7 @@ def _enhance_character(
         f"{feedback}"
     )
     raw = complete_structured(
-        build_messages(system=CHARACTER_ENHANCEMENT_SYSTEM_PROMPT, user=payload),
+        build_messages(system=CHARACTER_EDIT_SYSTEM_PROMPT, user=payload),
         schema=CharacterSceneInfo,
         retries=1,
     )
@@ -859,11 +869,28 @@ def _handle_background(
     user_content: str,
     state: Dict[str, Any],
     enriched_content: str,
+    action: str = "chat",
 ) -> Tuple[str, str, str, Dict[str, Any]]:
     master = state.get("master_json") or {}
     current = master.get("background")
     if not isinstance(current, dict):
         current = {}
+
+    # Phase 4 selection: present the isolated single-paragraph summary.
+    if scope_router.is_selection_only(action, user_content):
+        state["target_id"] = None
+        if not current:
+            return (
+                "No background has been extracted from this story yet. Describe the "
+                "setting you want and I'll apply it.",
+                BACKGROUND_ENHANCEMENT,
+                enriched_content,
+                state,
+            )
+        summary = _summarize_background(current)
+        if summary is None:
+            return MODEL_ERROR, BACKGROUND_ENHANCEMENT, enriched_content, state
+        return summary, BACKGROUND_ENHANCEMENT, enriched_content, state
 
     payload = (
         "CURRENT BACKGROUND DATA (BackgroundState JSON):\n"
@@ -874,7 +901,7 @@ def _handle_background(
         f"{user_content}"
     )
     raw = complete_structured(
-        build_messages(system=BACKGROUND_ENHANCEMENT_SYSTEM_PROMPT, user=payload),
+        build_messages(system=BACKGROUND_EDIT_SYSTEM_PROMPT, user=payload),
         schema=BackgroundState,
         retries=1,
     )
@@ -918,11 +945,28 @@ def _handle_scene(
     user_content: str,
     state: Dict[str, Any],
     enriched_content: str,
+    action: str = "chat",
 ) -> Tuple[str, str, str, Dict[str, Any]]:
     master = state.get("master_json") or {}
     current = master.get("scene")
     if not isinstance(current, dict):
         current = {"summary": "", "dialogues": []}
+
+    # Phase 4 selection: present the isolated single-paragraph summary.
+    if scope_router.is_selection_only(action, user_content):
+        state["target_id"] = None
+        if not current.get("summary") and not current.get("dialogues"):
+            return (
+                "No scene has been extracted from this story yet. Describe the beats "
+                "or dialogue you want and I'll apply them.",
+                SCENE_DIALOGUE_ENHANCEMENT,
+                enriched_content,
+                state,
+            )
+        summary = _summarize_scene(current)
+        if summary is None:
+            return MODEL_ERROR, SCENE_DIALOGUE_ENHANCEMENT, enriched_content, state
+        return summary, SCENE_DIALOGUE_ENHANCEMENT, enriched_content, state
 
     payload = (
         "CURRENT SCENE DATA (SceneState JSON):\n"
@@ -931,7 +975,7 @@ def _handle_scene(
         f"{user_content}"
     )
     raw = complete_structured(
-        build_messages(system=SCENE_ENHANCEMENT_SYSTEM_PROMPT, user=payload),
+        build_messages(system=SCENE_EDIT_SYSTEM_PROMPT, user=payload),
         schema=SceneState,
         retries=1,
     )

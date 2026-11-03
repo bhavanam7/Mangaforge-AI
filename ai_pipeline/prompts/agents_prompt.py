@@ -44,7 +44,7 @@ Summarize the provided character's canonical traits and immediate scene state in
 Cover their role, relationship to the main character, base appearance, outfit, current emotion, current action, goal, injuries, knowledge, and any extra details.
 Output ONLY the summary paragraph without conversational filler."""
 
-CHARACTER_ENHANCEMENT_SYSTEM_PROMPT = """You are an expert manga character manager.
+CHARACTER_EDIT_SYSTEM_PROMPT = """You are an expert manga character manager.
 Your task is to update a character's CharacterSceneInfo (containing 'canon' and 'state') by integrating user feedback into the existing character data.
 
 UPDATE RULES:
@@ -150,7 +150,7 @@ BACKGROUND_SUMMARY_SYSTEM_PROMPT = """You are an expert manga scene director.
 Summarize the provided background setting details (location, time of day, visual details, and ongoing event details) into a single cohesive, vivid narrative paragraph.
 Output ONLY the summary paragraph without conversational filler."""
 
-BACKGROUND_ENHANCEMENT_SYSTEM_PROMPT = """You are an expert manga scene director.
+BACKGROUND_EDIT_SYSTEM_PROMPT = """You are an expert manga scene director.
 Your task is to update the scene's BackgroundState (location, time_of_day, visual_details, event_details) by integrating user feedback into the existing background data.
 
 UPDATE RULES:
@@ -174,7 +174,7 @@ Summarize the provided scene state (which includes the event summary and dialogu
 Explicitly describe what happens in the scene, who speaks, and what key dialogue lines are delivered.
 Output ONLY the summary paragraph without conversational filler."""
 
-SCENE_ENHANCEMENT_SYSTEM_PROMPT = """You are an expert manga scene editor.
+SCENE_EDIT_SYSTEM_PROMPT = """You are an expert manga scene editor.
 Your task is to update the scene's SceneState (summary and dialogues list) by integrating user feedback into the existing scene data.
 
 UPDATE RULES:
@@ -199,6 +199,14 @@ Output strictly valid JSON matching the SceneState schema.
     ]
   }
 """
+
+
+# Backwards-compatible aliases: the enhancement hub prompts were renamed to the
+# `*_EDIT_SYSTEM_PROMPT` names used in
+# `dynamic_multi_entity_enhancement_workflow.md` (Section 4).
+CHARACTER_ENHANCEMENT_SYSTEM_PROMPT = CHARACTER_EDIT_SYSTEM_PROMPT
+BACKGROUND_ENHANCEMENT_SYSTEM_PROMPT = BACKGROUND_EDIT_SYSTEM_PROMPT
+SCENE_ENHANCEMENT_SYSTEM_PROMPT = SCENE_EDIT_SYSTEM_PROMPT
 
 
 TURN_EXTRACTION_OUTPUT_PROMPT = """You are an expert manga story parser. Analyze user input and extract story elements into JSON matching the schema below.

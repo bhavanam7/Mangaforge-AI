@@ -26,8 +26,35 @@ try:
     from main import run_pipeline
 except ImportError as e:
     print(f"Import failed: {e}")
-    def run_pipeline(user_content, stage, enriched_content, json_output, action="chat"):
+    def run_pipeline(user_content, stage, enriched_content, json_output, action="chat",
+                     scope=None, target_id=None):
         return f"Fallback response for stage '{stage}'", stage, enriched_content, json_output
+
+
+def _request_scope(request):
+    """Read the optional enhancement-hub context markers from the payload.
+
+    The React chat box sends `{ content, scope, target_id }` once the session is
+    in the enhancement hub (see
+    `ai_pipeline/dynamic_multi_entity_enhancement_workflow.md`, Section 2).
+    `scope` is restricted to the values the orchestrator understands so a
+    malformed payload falls back to the pipeline's own intent routing.
+    """
+    scope = request.data.get("scope")
+    if isinstance(scope, str):
+        scope = scope.strip().lower()
+    else:
+        scope = None
+    if scope not in ("character", "background", "scene", "story", "auto"):
+        scope = None
+
+    target_id = request.data.get("target_id")
+    if target_id is not None and not isinstance(target_id, (str, int)):
+        target_id = None
+    elif target_id is not None:
+        target_id = str(target_id).strip() or None
+
+    return scope, target_id
 
 
 class ProjectStoryView(APIView):
@@ -56,19 +83,28 @@ class ProjectStoryView(APIView):
         if session.status == StorySession.Status.FINALIZED:
             return Response({"detail": "This story session is finalized."}, status=status.HTTP_400_BAD_REQUEST)
         
-        serializer = StoryMessageSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user_content = serializer.validated_data["content"]
         user_action = request.data.get("action", "chat")  # e.g., "chat" or "finalize_stage"
+        user_scope, target_id = _request_scope(request)
+        raw_content = request.data.get("content")
+        user_content = raw_content.strip() if isinstance(raw_content, str) else ""
+
+        # An enhancement-hub entity selection may arrive without text: the user
+        # only clicked an entity to load its summary. Every other turn still
+        # needs a message, so keep the serializer's validation for those.
+        if not user_content and not (user_scope and target_id):
+            serializer = StoryMessageSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            user_content = serializer.validated_data["content"]
 
         print(f"\n[CHATBOT RECEIVE] Project {project_id} | Stage: {session.stage} - User: {user_content}\n", flush=True)
 
-        # 1. Save incoming user message
-        StoryMessage.objects.create(
-            session=session,
-            role=StoryMessage.Role.USER,
-            content=user_content
-        )
+        # 1. Save incoming user message (empty for a bare entity selection)
+        if user_content:
+            StoryMessage.objects.create(
+                session=session,
+                role=StoryMessage.Role.USER,
+                content=user_content
+            )
 
         # 2. Invoke AI Pipeline passing user_content, current stage, enriched_content, and json_output
         ai_reply, new_stage, new_enriched_content, new_json_output = run_pipeline(
@@ -76,7 +112,9 @@ class ProjectStoryView(APIView):
             stage=session.stage,
             enriched_content=session.enriched_content,
             json_output=session.json_output,
-            action=user_action
+            action=user_action,
+            scope=user_scope,
+            target_id=target_id,
         )
 
         # 3. Save AI Assistant response
@@ -119,6 +157,8 @@ class FinalizeStoryView(APIView):
             enriched_content=session.enriched_content,
             json_output=session.json_output,
             action="finalize_stage",
+            scope=None,
+            target_id=None,
         )
 
         StoryMessage.objects.create(

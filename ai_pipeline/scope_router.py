@@ -175,6 +175,20 @@ def is_select_request(action: Optional[str], message: str, names: List[str]) -> 
     return text.lower() in {name.strip().lower() for name in names if name}
 
 
+def is_selection_only(action: Optional[str], message: str) -> bool:
+    """
+    True when the turn only selects an entity and carries no edit instruction.
+
+    This is the Phase 1 "Entity Inspection & Summary Loading" signal: the
+    frontend sends ``scope``/``target_id`` with no message, or an explicit
+    select/summary/show action. The sub-engine must then return the entity's
+    summary instead of running an edit with empty feedback.
+    """
+    if action and action.strip().lower() in _SELECT_ACTIONS:
+        return True
+    return not (message or "").strip()
+
+
 def list_characters(master_json: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
     """Build the [{id, name}] character list used in replies / UI chips."""
     characters = (master_json or {}).get("characters") or []
